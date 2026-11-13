@@ -1,0 +1,82 @@
+# NanoFlags OpenFeature provider for Swift, for the public repository motazalmaroai/nanoflags-openfeature-swift.
+# Installed there as .github/workflows/mobile-swift.yml by scripts/export-swift-repos.sh (monorepo source:
+# packages/sdk-swift/ci/nanoflags-openfeature-swift.yml).
+#
+# The provider depends on https://github.com/motazalmaroai/nanoflags-swift from 0.1.0. CI does not resolve that tag:
+# it checks out nanoflags-swift (main, or the `core_ref` input) and puts this package in its OpenFeature/ directory,
+# the monorepo layout, where Package.swift depends on the core by path. So the provider is always tested against the
+# current core, before and after the core is tagged.
+#
+# No secrets, no production calls (the tests use a bootstrap bundle and an unreachable edge), so this workflow does
+# not toggle the demo flag. Apple platforms only: OpenFeature needs Combine.
+name: Swift OpenFeature provider
+
+on:
+  push:
+    branches: [main]
+    paths: ["Sources/**", "Tests/**", "Package.swift", ".github/workflows/mobile-swift.yml"]
+  workflow_dispatch:
+    inputs:
+      core_ref:
+        description: "nanoflags-swift branch or tag to test against"
+        default: main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openfeature-swift-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: macOS (swift test) + iOS simulator (xcodebuild test)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out the core (nanoflags-swift)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: motazalmaroai/nanoflags-swift
+          ref: ${{ inputs.core_ref || 'main' }}
+      - name: Check out this package into OpenFeature/
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: OpenFeature
+      - name: Select the newest Xcode (OpenFeature 0.7 needs Swift 6.1 / Xcode 16.3+)
+        run: |
+          set -euo pipefail
+          xcode=$(ls -d /Applications/Xcode_*.app | sed -E 's/.*Xcode_([0-9.]+)\.app/\1 &/' | grep -v beta | sort -V | tail -1 | cut -d' ' -f2)
+          sudo xcode-select -s "$xcode/Contents/Developer"
+          xcodebuild -version
+          swift --version
+          git -C . log -1 --format='core: %H %s'
+
+      - name: swift test on macOS
+        working-directory: OpenFeature
+        run: swift test
+
+      - name: Pick an iOS simulator
+        id: sim
+        run: |
+          set -euo pipefail
+          devices=$(xcrun simctl list devices available -j)
+          udid=$(echo "$devices" | jq -r '[.devices | to_entries[] | select(.key | test("SimRuntime.iOS-")) | .value[] | select(.name == "iPhone 15")] | first | .udid // empty')
+          if [ -z "$udid" ]; then
+            udid=$(echo "$devices" | jq -r '
+              [.devices | to_entries[] | select(.key | test("SimRuntime.iOS-"))
+               | {v: (.key | capture("iOS-(?<v>[0-9-]+)").v | split("-") | map(tonumber)), d: .value}]
+              | sort_by(.v) | last | .d | map(select(.name | startswith("iPhone"))) | last | .udid')
+          fi
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl list devices available | grep "$udid"
+
+      - name: xcodebuild test on the iOS simulator
+        working-directory: OpenFeature
+        run: |
+          set -euo pipefail
+          scheme=$(xcodebuild -list -json | jq -r '.workspace.schemes // .project.schemes | (map(select(endswith("-Package"))) | first) // "NanoFlagsOpenFeature"')
+          echo "scheme: $scheme"
+          xcodebuild test -scheme "$scheme" -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO | tee xcodebuild-ios.log
+          grep -E "Executed [0-9]+ tests" xcodebuild-ios.log | tail -1

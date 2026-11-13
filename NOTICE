@@ -1,0 +1,7 @@
+NanoFlags OpenFeature provider
+Copyright 2026 Alibtekarat Althkiya Company for Trading & Marketing (Intinovate)
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+It uses the OpenFeature Swift SDK (https://github.com/open-feature/swift-sdk), licensed under the Apache
+License, Version 2.0.
