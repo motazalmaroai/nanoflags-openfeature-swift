@@ -16,7 +16,7 @@ on the device, locally and synchronously, from a signed, live-updated configurat
 .product(name: "NanoFlagsOpenFeature", package: "nanoflags-openfeature-swift")
 ```
 
-Releases are tagged with bare semver (`0.1.0`). Until the first tag exists, use `branch: "main"`. The package depends
+Releases are tagged with bare semver (`0.1.0`). The package depends
 on `https://github.com/motazalmaroai/nanoflags-swift` from 0.1.0.
 
 ## Use

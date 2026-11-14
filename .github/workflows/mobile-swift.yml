@@ -20,6 +20,12 @@ on:
       core_ref:
         description: "nanoflags-swift branch or tag to test against"
         default: main
+  # Called by release.yml, with core_ref set to the nanoflags-swift tag this release depends on.
+  workflow_call:
+    inputs:
+      core_ref:
+        type: string
+        default: main
 
 permissions:
   contents: read

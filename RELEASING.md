@@ -5,20 +5,12 @@ with `scripts/export-swift-repos.sh`.
 
 Tags are **bare semver** — `0.1.0`, `0.2.0`, `1.0.0-rc.1` — with no `v` prefix, as Swift Package Manager expects.
 
+Releases are automated by `.github/workflows/release.yml`:
+
 1. The core package `motazalmaroai/nanoflags-swift` must already have the tag this package depends on
-   (`Package.swift`: `from: "0.1.0"`). Tag and push the core first.
-2. Push `main`, wait for `mobile-swift.yml` to pass (macOS `swift test`, iOS simulator `xcodebuild test`).
-3. Check that the package resolves against the tagged core (not only the CI's local checkout):
-
-   ```sh
-   rm -rf .build Package.resolved && swift package resolve && swift build
-   ```
-
-4. Tag and push:
-
-   ```sh
-   git tag -a 0.1.0 -m "NanoFlags OpenFeature provider for Swift 0.1.0"
-   git push origin 0.1.0
-   ```
+   (`Package.swift`: `from: "0.1.0"`); the release workflow fails until it does.
+2. Add a dated `CHANGELOG.md` entry (`## 0.2.0 — 2026-12-01`) in the monorepo, export, commit, push `main`.
+3. The release workflow runs the tests (macOS `swift test`, iOS simulator `xcodebuild test`) against the tagged core
+   and, only if they pass, creates the tag and a GitHub release with the CHANGELOG section as notes.
 
 Never move or delete a published tag; release a new patch version instead.
